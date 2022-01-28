@@ -1,8 +1,8 @@
 #include "common.hpp"
 #include <chrono>
 #include <exception>
-#include <oxenmq/oxenmq.h>
-#include <oxenmq/address.h>
+#include <bmq/bmq.h>
+#include <bmq/address.h>
 #include <pybind11/attr.h>
 #include <pybind11/chrono.h>
 #include <pybind11/functional.h>
@@ -14,7 +14,7 @@
 #include <memory>
 #include <variant>
 
-namespace oxenmq {
+namespace bmq {
 
 // Convert a py::object containing a str, bytes, or iterable over str/bytes to a vector of message
 // parts.  Throws on invalid input, otherwise returns a vector of parts.
@@ -52,7 +52,7 @@ struct stderr_logger {
 };
 
 void
-OxenMQ_Init(py::module& mod)
+BMQ_Init(py::module& mod)
 {
     using namespace pybind11::literals;
     constexpr py::kw_only kwonly{};
@@ -68,7 +68,7 @@ OxenMQ_Init(py::module& mod)
         .def(py::init<std::string_view>(), "addr"_a,
                 R"(Constructs from an encoded address such as 'curve://HOSTNAME:PORT/PUBKEY'.
 
-See oxenmq::Address C++ documentation for more details)")
+See bmq::Address C++ documentation for more details)")
         .def(py::init([](std::string_view addr, py::bytes pubkey) { return address{addr, (std::string) pubkey}; }),
                 "addr"_a, "pubkey"_a,
                 R"(Constructs from a ZMQ connection string and a 32-byte pubkey.
@@ -145,7 +145,7 @@ This typically protects administrative commands like shutting down or access to 
 - remote_sn - if True then this command may only be invoked by remote connections who we recognize
   (by pubkey) as being service nodes.  (Requires sn_lookup to be provided during construction).
 
-- local_sn - if True then this command will be unavailable if the OxenMQ object was not constructed
+- local_sn - if True then this command will be unavailable if the BMQ object was not constructed
   with service_node=True.)");
         py::implicitly_convertible<AuthLevel, Access>();
 
@@ -199,9 +199,9 @@ but rather is simply an endpoint to invoke on the caller who sent this message t
 should be the command endpoint, and `response` must be none (for no data parts), bytes, str, or an
 iterable thereof.
 
-This is a shortcut for `oxenmq.send(msg.conn, command, *args)`; use the full version if you need
+This is a shortcut for `bmq.send(msg.conn, command, *args)`; use the full version if you need
 extra send functionality.)")
-        .def("request", [](Message& m, std::string command, OxenMQ::ReplyCallback callback, py::args args) {
+        .def("request", [](Message& m, std::string command, BMQ::ReplyCallback callback, py::args args) {
             std::vector<std::string> data;
             m.send_request(command, std::move(callback), send_option::data_parts(extract_data_parts(args)));
         },
@@ -213,12 +213,12 @@ but rather is simply a new request endpoint to invoke on the caller who sent thi
 `command` should be the command endpoint, and `response` must be none (for no data parts), bytes,
 str, or an iterable thereof.
 
-This is a shortcut for `oxenmq.request(msg.conn, command, on_reply, *args)`; use the full version if you need
+This is a shortcut for `bmq.request(msg.conn, command, on_reply, *args)`; use the full version if you need
 extra send functionality.)")
         .def("later", &Message::send_later,
                 R"(Returns a proxy object which can be stored and used to reply to the remote caller at a later point.
 
-Unlike Message, the value returned here may outlive the command callback (as long as the OxenMQ
+Unlike Message, the value returned here may outlive the command callback (as long as the BMQ
 instance is still alive).)")
         ;
 
@@ -234,7 +234,7 @@ instance is still alive).)")
         },
         "command"_a,
         "Same as Message.back(), but deferrable")
-        .def("request", [](Message::DeferredSend& d, std::string command, OxenMQ::ReplyCallback callback, py::args args) {
+        .def("request", [](Message::DeferredSend& d, std::string command, BMQ::ReplyCallback callback, py::args args) {
             d.request(command, std::move(callback), send_option::data_parts(extract_data_parts(args)));
         },
         "command"_a, "on_reply"_a,
@@ -247,7 +247,7 @@ instance is still alive).)")
         ;
 
     py::class_<CatHelper>(mod, "Category",
-            "Helper class to add in registering category commands, returned from OxenMQ.add_category(...)")
+            "Helper class to add in registering category commands, returned from BMQ.add_category(...)")
         .def("add_command", [](CatHelper& cat, std::string name, py::function cb) {
             return cat.add_command(name, [cb=std::move(cb)](Message& m) {
                 py::gil_scoped_acquire gil;
@@ -278,7 +278,7 @@ this object must *not* be stored beyond the callback itself; see `Message` for d
                             try {
                                 result = extract_data_parts(obj);
                             } catch (const std::exception& e) {
-                                msg.oxenmq.log(LogLevel::warn, __FILE__, __LINE__,
+                                msg.bmq.log(LogLevel::warn, __FILE__, __LINE__,
                                         "Python callback returned "s + e.what());
                                 return;
                             }
@@ -309,22 +309,22 @@ callback itself.)")
         .value("fatal", LogLevel::fatal).value("error", LogLevel::error).value("warn", LogLevel::warn)
         .value("info", LogLevel::info).value("debug", LogLevel::debug).value("trace", LogLevel::trace);
 
-    py::class_<OxenMQ> oxenmq{mod, "OxenMQ"};
-    oxenmq
+    py::class_<BMQ> bmq{mod, "BMQ"};
+    bmq
         .def(py::init([](
                         py::bytes pubkey,
                         py::bytes privkey,
                         bool sn,
-                        OxenMQ::SNRemoteAddress sn_lookup,
+                        BMQ::SNRemoteAddress sn_lookup,
                         std::optional<LogLevel> log_level) {
-            return std::make_unique<OxenMQ>(pubkey, privkey, sn, std::move(sn_lookup),
-                    log_level ? OxenMQ::Logger{stderr_logger{}} : nullptr,
+            return std::make_unique<BMQ>(pubkey, privkey, sn, std::move(sn_lookup),
+                    log_level ? BMQ::Logger{stderr_logger{}} : nullptr,
                     log_level.value_or(LogLevel::warn));
         }),
                 kwonly,
                 "pubkey"_a = py::bytes(), "privkey"_a = py::bytes(), "service_node"_a = false,
                 "sn_lookup"_a = py::none(), "log_level"_a = py::none(),
-                R"(OxenMQ constructor.
+                R"(BMQ constructor.
 
 This constructs the object but does not start it; you will typically want to first add categories
 and commands, then finish startup by invoking `start()`.  (Categories and commands cannot be added
@@ -355,40 +355,40 @@ Parameters:
   Python's GIL.  In the future a Python callback may be supported for log messages.
 )")
 
-        .def_readwrite("handshake_time", &OxenMQ::HANDSHAKE_TIME,
+        .def_readwrite("handshake_time", &BMQ::HANDSHAKE_TIME,
                 "How long to wait for handshaking to complete on new connections before timing out.")
-        .def_readwrite("ephemeral_routing_id", &OxenMQ::EPHEMERAL_ROUTING_ID,
+        .def_readwrite("ephemeral_routing_id", &BMQ::EPHEMERAL_ROUTING_ID,
                 R"(Whether to use random connection IDs for outgoing connections.
 
 If set to True then use random connection IDs for each outgoing connection rather than the default
 IDs based on the local pubkey (False).  Using the same connection ID allows re-establishing
 connections (even after an application restart) with a remote without losing incoming messages, but
 does not allow multiple connections to a remote using the same keypair.)")
-        .def_readwrite("max_message_size", &OxenMQ::MAX_MSG_SIZE,
+        .def_readwrite("max_message_size", &BMQ::MAX_MSG_SIZE,
                 R"(Maximum incoming message size.
 
 If a remote attempts to send something larger the connection is closed.  -1 means no limit.)")
-        .def_readwrite("max_sockets", &OxenMQ::MAX_SOCKETS,
+        .def_readwrite("max_sockets", &BMQ::MAX_SOCKETS,
                 R"(Maximum open sockets supported by the internal zmq layer.
 
 Defaults to a large number.  If changing then this must be set before start() is called.)")
-        .def_readwrite("reconnect_interval", &OxenMQ::RECONNECT_INTERVAL,
+        .def_readwrite("reconnect_interval", &BMQ::RECONNECT_INTERVAL,
                 "Minimum time to wait before attempting to reconnect a failed connection.")
-        .def_readwrite("reconnect_interval_max", &OxenMQ::RECONNECT_INTERVAL_MAX,
+        .def_readwrite("reconnect_interval_max", &BMQ::RECONNECT_INTERVAL_MAX,
                 R"(Maximum reconnect interval.
 
-When larger than omq.reconnect_interval then upon subsequent reconnection failures an
+When larger than bmq.reconnect_interval then upon subsequent reconnection failures an
 exponential backoff will be used, up to at most this interval between reconnection attempts.)")
-        .def_readwrite("close_linger", &OxenMQ::CLOSE_LINGER,
+        .def_readwrite("close_linger", &BMQ::CLOSE_LINGER,
                 "How long (at most) to wait for connections to close cleanly when closing.")
-        .def_readwrite("connection_check_interval", &OxenMQ::CONN_CHECK_INTERVAL,
+        .def_readwrite("connection_check_interval", &BMQ::CONN_CHECK_INTERVAL,
                 R"(How frequently we cleanup connections.
 
 Cleaning up involves closing idle connections and calling connect or request failure callbacks.
 Making this slower results in more "overshoot" before failure callbacks are invoked; making it too
 fast results in more proxy thread overhead.  Any change to this variable must be set before calling
 start().)")
-        .def_readwrite("connection_heartbeat", &OxenMQ::CONN_HEARTBEAT,
+        .def_readwrite("connection_heartbeat", &BMQ::CONN_HEARTBEAT,
                 R"(Whether to enable heartbeats on incoming/outgoing connections.
 
 If set to > 0 then we set up ZMQ to send a heartbeat ping over the socket this often, which helps
@@ -396,13 +396,13 @@ keep the connection alive and lets failed connections be detected sooner (see al
 connection_heartbeat_timeout).  Changing the value only affects new connections.
 
 Defaults to 15s)")
-        .def_readwrite("connection_heartbeat_timeout", &OxenMQ::CONN_HEARTBEAT_TIMEOUT,
+        .def_readwrite("connection_heartbeat_timeout", &BMQ::CONN_HEARTBEAT_TIMEOUT,
                 R"(How long after missing heartbeats to consider a socket dead.
 
 When .conn_heartbeat is enabled, this sets how long we wait for a reply on a socket before
 considering the socket to have died and closing it.  Changing the value only affects new
 connections.)")
-        .def_readwrite("startup_umask", &OxenMQ::STARTUP_UMASK,
+        .def_readwrite("startup_umask", &BMQ::STARTUP_UMASK,
                 R"(The umask to apply when constructing sockets
 
 This primarily affects any new ipc:// listening sockets that get created.  Does nothing if set to -1
@@ -410,18 +410,18 @@ This primarily affects any new ipc:// listening sockets that get created.  Does 
 `start()`, so may affect other threads that create files/directories at the same time as the start()
 call.)")
         .def_property_readonly("pubkey",
-                [](const OxenMQ& self) {
+                [](const BMQ& self) {
                     auto& pub = self.get_pubkey();
                     return py::bytes(pub.data(), pub.size());
                 },
-                "Accesses this OxenMQ's x25519 public key, as bytes.")
+                "Accesses this BMQ's x25519 public key, as bytes.")
         .def_property_readonly("privkey",
-                [](const OxenMQ& self) {
+                [](const BMQ& self) {
                     auto& priv = self.get_privkey();
                     return py::bytes(priv.data(), priv.size());
                 },
-                "Accesses this OxenMQ's x25519 private key, as bytes.")
-        .def("start", &OxenMQ::start, R"(Starts the OxenMQ object.
+                "Accesses this BMQ's x25519 private key, as bytes.")
+        .def("start", &BMQ::start, R"(Starts the BMQ object.
 
 This is called after all initialization (categories, etc.) is configured.  This binds to the bind
 locations given in the constructor and launches the proxy thread to handle message dispatching
@@ -436,12 +436,12 @@ Things you want to do before calling this:
   remote SN connections will be erroneously treated as non-SN connections.
 - If this LMQ instance should accept incoming connections, set up any listening ports via
   `listen_curve()` and/or `listen_plain()`.)")
-        .def("listen", [](OxenMQ& self,
+        .def("listen", [](BMQ& self,
                     std::string bind,
                     bool curve,
                     std::optional<py::function> pyallow,
                     std::function<void(bool success)> on_bind) {
-            OxenMQ::AllowFunc allow;
+            BMQ::AllowFunc allow;
             if (pyallow)
                 // We need to wrap this to pass the pubkey as bytes (otherwise pybind tries to utf-8
                 // encode it).
@@ -490,7 +490,7 @@ Parameters:
   called from the proxy thread when it opens the new port.  Note that this function is called
   directly from the proxy thread and so should be fast and non-blocking.
 )")
-        .def("add_tagged_thread", [](OxenMQ& self, std::string name, std::function<void()> start) {
+        .def("add_tagged_thread", [](BMQ& self, std::string name, std::function<void()> start) {
             return self.add_tagged_thread(std::move(name), std::move(start));
         },
         "name"_a, kwonly, "start"_a = std::nullopt,
@@ -512,13 +512,13 @@ Parameters:
 - name - the name of the thread; will be used in log messages and (if supported by the OS) as the
   system thread name.
 
-- start - an optional callback to invoke from the thread as soon as OxenMQ itself starts up (i.e.
+- start - an optional callback to invoke from the thread as soon as BMQ itself starts up (i.e.
   after a call to `start()`).
 
 Returns a TaggedThreadID object that can be passed to job(), batch(), or add_timer() to direct the
 task to the tagged thread.
 )")
-        .def("set_general_threads", &OxenMQ::set_general_threads, "threads"_a,
+        .def("set_general_threads", &BMQ::set_general_threads, "threads"_a,
                 R"(Sets the number of general threads to use for handling requests.
 
 This controls the maximum number of threads that may be created to deal with general tasks such as
@@ -527,7 +527,7 @@ handling incoming commands.  Cannot be called after `start()`.
 If not called then the default is to use the number of CPUs/threads detected on the system.  
 
 Changing this also affects the default value of set_batch_threads() and set_reply_threads().)")
-        .def("set_reply_threads", &OxenMQ::set_reply_threads, "threads"_a,
+        .def("set_reply_threads", &BMQ::set_reply_threads, "threads"_a,
 
                 R"(Set the minimum number of threads used for processing replies.
 
@@ -541,7 +541,7 @@ Note that any such tasks would *first* use general threads; this limit would all
 threads only if all general threads are currently busy *and* there are not at least this many reply
 tasks currently being processed.)")
 
-        .def("set_batched_threads", &OxenMQ::set_batch_threads,
+        .def("set_batched_threads", &BMQ::set_batch_threads,
                 "threads"_a, R"(Set the maximum number of threads to spawn for batch jobs.
 
 This sets the limit on the maximum number of threads that may be created to process batch jobs,
@@ -556,7 +556,7 @@ are currently processing batch jobs.)")
                 std::function<void()>,
                 std::chrono::milliseconds,
                 bool,
-                std::optional<TaggedThreadID>>(&OxenMQ::add_timer),
+                std::optional<TaggedThreadID>>(&BMQ::add_timer),
                 "job"_a, "interval"_a, kwonly, "squelch"_a = true, "thread"_a = std::nullopt,
                 R"(Adds a callback to be invoked on a repeating timer.
 
@@ -571,18 +571,18 @@ Optional parameters:
 
 - thread - a TaggedThreadID specifying a tagged thread (created with `add_tagged_thread`) in which
   the timer should run.  If unspecified then the timer runs in the general batch job queue.)")
-        .def("cancel_timer", &OxenMQ::cancel_timer, R"(Cancels a timer previously added with add_timer().
+        .def("cancel_timer", &BMQ::cancel_timer, R"(Cancels a timer previously added with add_timer().
 
 Note that this does not queue any already-scheduled timer job and as a result it is possible for an
 already-scheduled timer job to run *after* this call removes the timer.
 
 It is permitted to call this with the same TimerID multiple times; subsequent calls have no effect.)")
-        .def("job", &OxenMQ::job, "job"_a, py::kw_only(), "thread"_a = std::nullopt,
-                R"(Queues a job to be run as an OxenMQ job.
+        .def("job", &BMQ::job, "job"_a, py::kw_only(), "thread"_a = std::nullopt,
+                R"(Queues a job to be run as an BMQ job.
 
-This submits a callback to be invoked by OxenMQ.  The job can either be scheduled with general batch
+This submits a callback to be invoked by BMQ.  The job can either be scheduled with general batch
 jobs or can be directed to a specific tagged thread (created with `add_tagged_thread`).)")
-        .def("add_category", &OxenMQ::add_category,
+        .def("add_category", &BMQ::add_category,
                 "name"_a, "access_level"_a, kwonly, "reserved_threads"_a = 0, "max_queue"_a = 200,
                 py::keep_alive<0, 1>(),
                 R"(Add a new command category.
@@ -608,7 +608,7 @@ category waiting for an available thread to process them before we start droppin
 commands.  -1 means unlimited, 0 means we never queue (i.e. we drop if no thread is immediately
 available).
 )")
-        .def("add_command_alias", &OxenMQ::add_command_alias,
+        .def("add_command_alias", &BMQ::add_command_alias,
                 "from"_a, "to"_a,
                 R"(Adds a command alias.
 
@@ -617,10 +617,10 @@ This allows adding backwards-compatible aliases for commands that have moved.  F
 they had requested the dog.bark endpoint.  Note that this mapping happens *before* applying category
 permissions: in this example, the required permissions the access the endpoint would be those of the
 "dog" category rather than the "cat" category.)")
-        .def("connect_remote", [](OxenMQ& self,
+        .def("connect_remote", [](BMQ& self,
                     const address& remote,
-                    OxenMQ::ConnectSuccess on_success,
-                    OxenMQ::ConnectFailure on_failure,
+                    BMQ::ConnectSuccess on_success,
+                    BMQ::ConnectFailure on_failure,
                     std::chrono::milliseconds timeout,
                     std::optional<bool> ephemeral_routing_id) {
 
@@ -631,16 +631,16 @@ permissions: in this example, the required permissions the access the endpoint w
         },
         "remote"_a, "on_success"_a, "on_failure"_a,
         kwonly,
-        "timeout"_a = oxenmq::REMOTE_CONNECT_TIMEOUT, "ephemeral_routing_id"_a = std::nullopt,
+        "timeout"_a = bmq::REMOTE_CONNECT_TIMEOUT, "ephemeral_routing_id"_a = std::nullopt,
         R"(
 Starts connecting to a remote address and return immediately.  The connection can be used
 immediately, however messages will only be queued until the connection is established (or dropped if
 the connection fails).  The given callbacks are invoked for success or failure.
 
-`ephemeral_routing_id` and `timeout` allowing overriding the defaults (oxenmq.EPHEMERAL_ROUTING_ID
+`ephemeral_routing_id` and `timeout` allowing overriding the defaults (bmq.EPHEMERAL_ROUTING_ID
 and 10s, respectively).
 )")
-        .def("connect_remote", [](OxenMQ& self,
+        .def("connect_remote", [](BMQ& self,
                     const address& remote,
                     std::chrono::milliseconds timeout,
                     std::optional<bool> ephemeral_routing_id) {
@@ -652,18 +652,18 @@ and 10s, respectively).
                         promise.set_exception(std::make_exception_ptr(
                                     std::runtime_error{"Connection failed: " + std::string{reason}}));
                     },
-                    oxenmq::connect_option::timeout{timeout},
+                    bmq::connect_option::timeout{timeout},
                     connect_option::ephemeral_routing_id{ephemeral_routing_id.value_or(self.EPHEMERAL_ROUTING_ID)}
                     );
             return promise.get_future().get();
-        }, "remote"_a, "timeout"_a = oxenmq::REMOTE_CONNECT_TIMEOUT, "ephemeral_routing_id"_a = std::nullopt,
+        }, "remote"_a, "timeout"_a = bmq::REMOTE_CONNECT_TIMEOUT, "ephemeral_routing_id"_a = std::nullopt,
         R"(Simpler version of connect_remote that connects to a remote address synchronously.
 
 This will block until the connection is established or times out; throws on connection failure,
 returns the ConnectionID on success.
 
 Takes the address and an optional `timeout` to override the timeout (default 10s))")
-        .def("connect_sn", [](OxenMQ& self,
+        .def("connect_sn", [](BMQ& self,
                     py::bytes pubkey,
                     std::optional<std::chrono::milliseconds> keep_alive,
                     std::optional<std::string> remote_hint,
@@ -696,28 +696,28 @@ Parameters:
   callback to find the remote address.  Typically provided only if the location has already been
   looked up for some other reason.
 
-- ephemeral_routing_id - if set, override the default OxenMQ.EPHEMERAL_ROUTING_ID for this
+- ephemeral_routing_id - if set, override the default BMQ.EPHEMERAL_ROUTING_ID for this
   connection.
 
 Returns a ConnectionID that identifies an connection with the given SN.  Typically you *don't* need
 to worry about saving this (and can just discard it): you can always simply pass the pubkey into
 send/request methods to send to the SN by pubkey.
 )")
-        .def("connect_inproc", &OxenMQ::connect_inproc<>,
+        .def("connect_inproc", &BMQ::connect_inproc<>,
                 "on_success"_a, "on_failure"_a,
                 R"(Establish a connection to ourself.
 
-Connects to the built-in in-process listening socket of this OxenMQ server for local communication.
+Connects to the built-in in-process listening socket of this BMQ server for local communication.
 Note that auth_level defaults to admin (unlike connect_remote), and the default timeout is much
 shorter.
 
 This connection is designed to allow code within the same process to invoke registered commands via
-the OxenMQ object.  The connection works whether or not there are any accessible external listeners.
+the BMQ object.  The connection works whether or not there are any accessible external listeners.
 
 Also note that incoming inproc requests are unauthenticated: that is, they will always have
 admin-level access.
 )")
-        .def("disconnect", &OxenMQ::disconnect,
+        .def("disconnect", &BMQ::disconnect,
                 "conn"_a, "linger"_a = 1s,
                 R"(Disconnect an established connection.
 
@@ -729,7 +729,7 @@ are still pending messages to be delivered; if those messages are not delivered 
 time then the connection is closed anyway.  (Note that this is non-blocking: the lingering occurs in
 the background).)")
 
-        .def("send", [](OxenMQ& self, std::variant<ConnectionID, py::bytes> conn,
+        .def("send", [](BMQ& self, std::variant<ConnectionID, py::bytes> conn,
                     std::string command,
                     py::args args, py::kwargs kwargs) {
 
@@ -783,7 +783,7 @@ the background).)")
                         // The gil here makes things tricky: the function invocation itself is
                         // already gil protected, but the *destruction* of the lambda isn't, and
                         // that breaks things because the destruction frees a python reference to
-                        // the callback.  However oxenmq invokes this callback exactly once so we
+                        // the callback.  However bmq invokes this callback exactly once so we
                         // can deal with it by stealing the captures out of the lambda to force
                         // destruction here, with the gil held.
                         py::gil_scoped_acquire gil;
@@ -893,17 +893,17 @@ function during construction) the following options are also available:
         .def("request", [](py::handle self, py::args args, py::kwargs kwargs) {
             self.attr("send")(*args, **kwargs, "request"_a = true);
         },
-        "Convenience shortcut for oxenmq.send(..., request=True)")
-        .def("inject_task", &OxenMQ::inject_task,
+        "Convenience shortcut for bmq.send(..., request=True)")
+        .def("inject_task", &BMQ::inject_task,
                 "category"_a, "command"_a, "remote"_a, "callback"_a,
                 R"(Inject a callback as if it were a remotely invoked command.
 
 This method takes a callback and queues it to be invoked as if it had been called remotely.  This allows
-external command processing to be combined with oxenmq task scheduling.
+external command processing to be combined with bmq task scheduling.
 
 For example, oxen-core uses this to handle RPC requests coming in over HTTP as if they were incoming
-OxenMQ RPC requests, with the same scheduling and queuing of requests applied to both HTTP and
-OxenMQ requests so that both are treated fairly in terms of processing priority.)")
+BMQ RPC requests, with the same scheduling and queuing of requests applied to both HTTP and
+BMQ requests so that both are treated fairly in terms of processing priority.)")
         ;
 
     py::enum_<std::future_status>(mod, "future_status")
@@ -936,7 +936,7 @@ OxenMQ requests so that both are treated fairly in terms of processing priority.
                 "Wait until the given datetime for the result to become available")
         ;
 
-    oxenmq.def("request_future", [](py::handle self, py::args args, py::kwargs kwargs) {
+    bmq.def("request_future", [](py::handle self, py::args args, py::kwargs kwargs) {
         if (kwargs.contains("on_reply") || kwargs.contains("on_reply_failure"))
             throw std::logic_error{"Cannot call request_wait(...) with on_reply= or on_reply_failure="};
 
@@ -976,7 +976,7 @@ request.  Takes the same arguments as .request(...), but without the `on_reply` 
 This can be used to make a synchronous request by simply calling .get() on the returned future:
 
     try:
-        response = omq.request_future(conn, "cat.cmd", "data").get()
+        response = bmq.request_future(conn, "cat.cmd", "data").get()
     except TimeoutError as e:
         print("Request timed out!")
     except Exception:
@@ -986,4 +986,4 @@ More powerfully, you can issue multiple, parallel requests storing the returned 
 all of them to collect the responses.)");
 }
 
-} // namespace oxenmq
+} // namespace bmq

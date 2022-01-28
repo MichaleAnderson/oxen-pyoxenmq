@@ -5,9 +5,9 @@
 
 namespace py = pybind11;
 
-namespace oxenmq {
+namespace bmq {
 
-void OxenMQ_Init(py::module &mod);
+void BMQ_Init(py::module &mod);
 void BEncode_Init(py::module & mod);
 
 }

@@ -1,11 +1,11 @@
-import pyoxenmq
+import pybmq
 import time
 
 def handle_ping(args):
     print(args)
     return args
 
-lmq = pyoxenmq.OxenMQ()
+lmq = pybmq.BMQ()
 lmq.listen_plain("ipc:///tmp/lmq.sock")
 lmq.add_anonymous_category("python")
 lmq.add_request_command("python", "ping", handle_ping)

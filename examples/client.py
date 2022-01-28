@@ -1,8 +1,8 @@
-import pyoxenmq
+import pybmq
 
 def do_connected(mq, conn):
     print("connected via", conn)
-    return mq.request(conn, "llarp.auth", ["dq3j4dj99w6wi4t4yjnya8sxtqr1rojt8jgnn6467o6aoenm3o3o.loki", "5:token"])
+    return mq.request(conn, "llarp.auth", ["dq3j4dj99w6wi4t4yjnya8sxtqr1rojt8jgnn6467o6aoenm3o3o.beldex", "5:token"])
 
 def do_request(mq):
     print('connect')
@@ -11,7 +11,7 @@ def do_request(mq):
         return do_connected(lmq, conn)
 
 def main():
-    mq = pyoxenmq.OxenMQ()
+    mq = pybmq.BMQ()
     print("start")
     mq.start()
     print(do_request(mq))

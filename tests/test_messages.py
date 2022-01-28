@@ -1,5 +1,5 @@
 
-from oxenmq import OxenMQ, Message, LogLevel, AuthLevel, Address
+from bmq import BMQ, Message, LogLevel, AuthLevel, Address
 import random
 import string
 from datetime import datetime, timedelta
@@ -24,28 +24,28 @@ def zmq_address():
     os.remove(sock)
 
 
-def make_omqs(zmq_addr, start=True):
-    omq1 = OxenMQ(log_level=LogLevel.trace)
+def make_bmqs(zmq_addr, start=True):
+    bmq1 = BMQ(log_level=LogLevel.trace)
 
-    addr = Address(zmq_addr, omq1.pubkey)
+    addr = Address(zmq_addr, bmq1.pubkey)
 
-    omq1.listen(addr.zmq_address, curve=True)
+    bmq1.listen(addr.zmq_address, curve=True)
 
-    omq1.add_category('cat', AuthLevel.none) \
+    bmq1.add_category('cat', AuthLevel.none) \
         .add_request_command('echo', echo) \
         .add_request_command('ohce', ohce)
 
-    omq2 = OxenMQ(log_level=LogLevel.trace)
+    bmq2 = BMQ(log_level=LogLevel.trace)
 
     if start:
-        omq1.start()
-        omq2.start()
+        bmq1.start()
+        bmq2.start()
 
-    return omq1, omq2, addr
+    return bmq1, bmq2, addr
 
 
 def test_requests(zmq_address):
-    omq1, omq2, addr = make_omqs(zmq_address)
+    bmq1, bmq2, addr = make_bmqs(zmq_address)
 
     reply1, reply2 = None, None
 
@@ -57,9 +57,9 @@ def test_requests(zmq_address):
         nonlocal reply2
         reply2 = [x.tobytes().decode() for x in r]
 
-    c1 = omq2.connect_remote(addr)
-    omq2.request(c1, 'cat.echo', 'fee', 'fi', 'fo', 'fum', on_reply=on_reply1)
-    omq2.request(c1, 'cat.ohce', 'fee', 'fi', 'fo', 'fum', on_reply=on_reply2)
+    c1 = bmq2.connect_remote(addr)
+    bmq2.request(c1, 'cat.echo', 'fee', 'fi', 'fo', 'fum', on_reply=on_reply1)
+    bmq2.request(c1, 'cat.ohce', 'fee', 'fi', 'fo', 'fum', on_reply=on_reply2)
 
     timeout = datetime.now() + timedelta(seconds=0.5)
     while None in (reply1, reply2) and datetime.now() < timeout:
@@ -70,15 +70,15 @@ def test_requests(zmq_address):
 
 
 def test_request_future(zmq_address):
-    omq1, omq2, addr = make_omqs(zmq_address)
-    c1 = omq2.connect_remote(addr)
+    bmq1, bmq2, addr = make_bmqs(zmq_address)
+    c1 = bmq2.connect_remote(addr)
 
-    reply3 = [x.decode() for x in omq2.request_future(c1, 'cat.echo', 'xyz').get()]
+    reply3 = [x.decode() for x in bmq2.request_future(c1, 'cat.echo', 'xyz').get()]
     assert reply3 == ['Hi!', 'xyz']
 
 
 def test_commands(zmq_address):
-    omq1, omq2, addr = make_omqs(zmq_address, start=False)
+    bmq1, bmq2, addr = make_bmqs(zmq_address, start=False)
 
     val1, val2, val3 = None, None, None
     defer = None
@@ -97,17 +97,17 @@ def test_commands(zmq_address):
         nonlocal defer, val3
         val3 = ['CMD-later got'] + m.data()
 
-    omq1.add_category("x", AuthLevel.none) \
+    bmq1.add_category("x", AuthLevel.none) \
         .add_command("y", cmd1) \
         .add_command("z", cmd_later)
 
-    omq2.add_category("x", AuthLevel.none) \
+    bmq2.add_category("x", AuthLevel.none) \
         .add_command("x", cmd2)
 
-    omq1.start()
-    omq2.start()
-    c1 = omq2.connect_remote(addr)
-    omq2.send(c1, 'x.y', b'\0', 'M', 'G')
+    bmq1.start()
+    bmq2.start()
+    c1 = bmq2.connect_remote(addr)
+    bmq2.send(c1, 'x.y', b'\0', 'M', 'G')
 
     timeout = datetime.now() + timedelta(seconds=0.5)
     while None in (val1, val2) and datetime.now() < timeout:

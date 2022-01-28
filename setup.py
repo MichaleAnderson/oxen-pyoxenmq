@@ -10,20 +10,20 @@ __version__ = "1.0.2"
 #   reproducible builds (https://github.com/pybind/python_example/pull/53)
 
 ext_modules = [Pybind11Extension(
-        "oxenmq",
-        ["src/bencode.cpp", "src/module.cpp", "src/oxenmq.cpp"],
+        "bmq",
+        ["src/bencode.cpp", "src/module.cpp", "src/bmq.cpp"],
         cxx_std=17,
-        libraries=["oxenmq"],
+        libraries=["bmq"],
         ),
 ]
 
 setup(
-    name="oxenmq",
+    name="bmq",
     version=__version__,
     author="Jason Rhinelander",
     author_email="jason@oxen.io",
-    url="https://github.com/oxen-io/oxen-mq",
-    description="Python wrapper for oxen-mq message passing library",
+    url="https://github.com/oxen-io/bmq",
+    description="Python wrapper for bmq message passing library",
     long_description="",
     ext_modules=ext_modules,
     zip_safe=False,

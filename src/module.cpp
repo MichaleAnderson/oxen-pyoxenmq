@@ -1,6 +1,6 @@
 #include "common.hpp"
 
-PYBIND11_MODULE(oxenmq, m) {
-    oxenmq::OxenMQ_Init(m);
-    oxenmq::BEncode_Init(m);
+PYBIND11_MODULE(bmq, m) {
+    bmq::BMQ_Init(m);
+    bmq::BEncode_Init(m);
 }

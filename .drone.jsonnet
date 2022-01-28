@@ -3,12 +3,12 @@ local default_deps_base = [
   'python3-setuptools',
   'pybind11-dev',
   'python3-pybind11',
-  'liboxenmq-dev',
+  'libbmq-dev',
   'python3-pytest',
   'python3-pip',
 ];
 local default_deps = ['g++'] + default_deps_base;
-local docker_base = 'registry.oxen.rocks/lokinet-ci-';
+local docker_base = 'registry.oxen.rocks/belnet-ci-';
 
 local apt_get_quiet = 'apt-get -o=Dpkg::Use-Pty=0 -q';
 
@@ -73,8 +73,8 @@ local mac_builder(name,
       commands: [
         'echo "Building on ${DRONE_STAGE_MACHINE}"',
         'mkdir prefix',
-        'git clone https://github.com/oxen-io/oxen-mq.git',
-        'cd oxen-mq',
+        'git clone https://github.com/oxen-io/bmq.git',
+        'cd bmq',
         'git submodule update --init --recursive --depth=1',
         'mkdir build && cd build',
         'cmake .. -DOXENMQ_BUILD_TESTS=OFF -DCMAKE_INSTALL_PREFIX=../../prefix -G Ninja',

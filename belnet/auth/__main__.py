@@ -1,4 +1,4 @@
-import pyoxenmq
+import pybmq
 import base64
 import subprocess
 import shlex
@@ -61,7 +61,7 @@ def decode_value(data, first=None):
 
 
 def decode_address(data):
-    return '{}.loki'.format(pyoxenmq.base32z_encode(decode_value(data)[b's'][b's']))
+    return '{}.beldex'.format(pybmq.base32z_encode(decode_value(data)[b's'][b's']))
 
 def handle_auth_impl(args, cmd):
     cmd2 = cmd
@@ -85,7 +85,7 @@ def main():
     ap.add_argument("--cmd", required=True, help="script to call for authentication")
     args = ap.parse_args()
     cmd = shlex.split(args.cmd)
-    mq = pyoxenmq.OxenMQ()
+    mq = pybmq.BMQ()
     mq.listen_plain(args.bind)
     mq.add_anonymous_category("llarp")
     mq.add_request_command("llarp", "auth", lambda x : handle_auth(x, cmd))

@@ -1,4 +1,4 @@
-import pyoxenmq
+import pybmq
 import time
 
 def handle_auth(args):
@@ -7,7 +7,7 @@ def handle_auth(args):
     return "OK"
 
 def main():
-    lmq = pyoxenmq.OxenMQ()
+    lmq = pybmq.BMQ()
     lmq.listen_plain("ipc:///tmp/lmq.sock")
     lmq.add_anonymous_category("llarp")
     lmq.add_request_command("llarp", "auth", handle_auth)
